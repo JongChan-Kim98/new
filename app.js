@@ -59,13 +59,15 @@ app.post('/index',(req,res)=>{
         raw : true,
         where : {userId:userid,userPassword:userpw},
     }).then((e)=>{ // findOne을해서 담은 정보를 e에 넣음
-        if(e === null){
-            // res.setHeader('Set-Cookie', "login=true");
+        if(e === null){ // 유저아이디와 패스워드가 일치한 값이 없다면
             res.send('<script type="text/javascript">alert("로그인 정보가 일치하지 않습니다."); window.location.href="/";</script>');
+        }
+        else if((userid && userpw) == ""){ // 유저아이디와 패스워드가 공란이라면 
+            res.send('<script type="text/javascript">alert("아이디와 비밀번호를 입력해주세요."); window.location.href="/";</script>');
         }else{
             res.cookie("user",userid,{ // 로그인시 id로 쿠키만들기
-                expires : new Date(Date.now() + 900000),
-                httpOnly : true
+            expires : new Date(Date.now() + 900000),
+            httpOnly : true
             });
             res.render('myPage',{data : e});        
         }
