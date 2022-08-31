@@ -2,6 +2,7 @@ const express = require("express");
 const bodyParser = require('body-parser');
 const ejs = require("ejs");
 const path = require("path");
+const bcrypt = require('bcrypt');
 const mysql = require("mysql2");
 const img = require('./js/upload');
 const { sequelize, User } = require("./model"); // 서버 객체 만들고
@@ -27,50 +28,57 @@ sequelize
 .catch((err)=>{ // 연결실패 
     console.log(err)
 });
-
-app.post("/create",(req,res)=>{
-    // create이 함수를 사용하면 해당 테이블에 컬럼을 추가할 수 있다.
-    const { nickName, userPassword, userId }  = req.body;
-    const create = User.create({  
-        nickName : nickName,
-        userPassword : userPassword,
-        userId : userId,
-        userStop : 0,
-        userWarning : 0,
-        authority : "일반",
-        // 위의 객체를 전달해서 컬럼을 추가할수있다.
-    }).then((e)=>{ // 회원가입 성공 시
-        res.send('<script>alert("회원가입을 축하합니다!"); document.location.href="/";</script>');
-    })
-    .catch((err)=>{ // 회원 가입 실패 시 
-        res.send(err);
-    });
-});
-
 app.get("/", (req,res)=>{  // 현재까지 메인인 log.html
     res.render("index");
 });
-
+//-------------------------------회원가입 및 비밀번호 암호화-------------------------------
+app.post("/create",(req,res)=>{
+    // create이 함수를 사용하면 해당 테이블에 컬럼을 추가할 수 있다.
+    const { nickName, userPassword, userId }  = req.body;
+    if((nickName && userPassword) == ""){ 
+        res.send('<script type="text/javascript">alert("아이디와 비밀번호를 입력해주세요."); window.location.href="/";</script>');
+    }else{
+        // bcrypt 활용 비밀번호 암호화
+        bcrypt.hash(userPassword, 10, (err,encrypted)=>{
+            const create = User.create({  
+                nickName : nickName,
+                userPassword : encrypted,
+                userId : userId,
+                userStop : 0,
+                userWarning : 0,
+                authority : "일반",
+                // 위의 객체를 전달해서 컬럼을 추가할수있다.
+            }).then((e)=>{ // 회원가입 성공 시
+                res.send('<script>alert("회원가입을 축하합니다!"); document.location.href="/";</script>');
+            }).catch((err)=>{ // 회원 가입 실패 시 
+                res.send('<script>alert("중복된 아이디입니다"); document.location.href="/";</script>');
+            })
+        })
+    }
+});
 //------------------------------로그인 및 쿠키 생성--------------------------------------------
 app.post('/index',(req,res)=>{    
     const userid = req.body.userId;
     const userpw = req.body.userPassword;
     User.findOne({
         raw : true,
-        where : {userId:userid,userPassword:userpw},
+        where : {userId:userid}
     }).then((e)=>{ // findOne을해서 담은 정보를 e에 넣음
-        if(e === null){ // 유저아이디와 패스워드가 일치한 값이 없다면
-            res.send('<script type="text/javascript">alert("로그인 정보가 일치하지 않습니다."); window.location.href="/";</script>');
-        }
-        else if((userid && userpw) == ""){ // 유저아이디와 패스워드가 공란이라면 
-            res.send('<script type="text/javascript">alert("아이디와 비밀번호를 입력해주세요."); window.location.href="/";</script>');
-        }else{
-            res.cookie("user",userid,{ // 로그인시 id로 쿠키만들기
-            expires : new Date(Date.now() + 900000),
-            httpOnly : true
-            });
-            res.render('myPage',{data : e});        
-        }
+        const hashPassword = e.userPassword;
+        bcrypt.compare(userpw, hashPassword, (err, same) => {
+            if(same){
+                res.cookie("user",userid,{ // 로그인시 id로 쿠키만들기
+                expires : new Date(Date.now() + 900000),
+                httpOnly : true
+                });
+                res.render('myPage',{data : e});  
+            }else if((userid && userpw) == ""){ // 유저아이디와 패스워드가 공란이라면 
+                res.send('<script type="text/javascript">alert("아이디와 비밀번호를 입력해주세요."); window.location.href="/";</script>');
+            }
+            else{
+                res.send('<script type="text/javascript">alert("로그인 정보가 일치하지 않습니다."); window.location.href="/";</script>');
+            }
+        })
     });
 });
 //------------------------------------로그아웃-----------------------------------------------------
